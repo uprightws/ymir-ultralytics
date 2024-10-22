@@ -10,7 +10,7 @@ ymir_cfg = get_merged_config()
 imgsz = int(ymir_cfg.param.img_size)
 device = str(ymir_cfg.param.get('gpu_id', '0'))
 monitor_gap = 10
-# Load a pretrained YOLOv8n model
+# Load a pretrained YOLO model
 
 model = YOLO(get_weight_file(ymir_cfg))
 ymir_infer_result = dict()
