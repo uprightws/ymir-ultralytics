@@ -26,6 +26,7 @@ from ultralytics.data.utils import check_cls_dataset, check_det_dataset
 from ultralytics.nn.tasks import attempt_load_one_weight, attempt_load_weights
 from ultralytics.utils import (
     DEFAULT_CFG,
+    SETTINGS,
     LOCAL_RANK,
     LOGGER,
     RANK,
@@ -40,7 +41,7 @@ from ultralytics.utils import (
 from ultralytics.utils.autobatch import check_train_batch_size
 from ultralytics.utils.checks import check_amp, check_file, check_imgsz, check_model_file_from_stem, print_args
 from ultralytics.utils.dist import ddp_cleanup, generate_ddp_command
-from ultralytics.utils.files import get_latest_run
+from ultralytics.utils.files import get_latest_run, increment_path
 from ultralytics.utils.torch_utils import (
     TORCH_2_4,
     EarlyStopping,
@@ -53,6 +54,7 @@ from ultralytics.utils.torch_utils import (
     strip_optimizer,
     torch_distributed_zero_first,
 )
+from ymir_exc.util import (YmirStage, get_merged_config, write_ymir_monitor_process,write_ymir_training_result)
 
 
 class BaseTrainer:
@@ -107,9 +109,26 @@ class BaseTrainer:
         init_seeds(self.args.seed + 1 + RANK, deterministic=self.args.deterministic)
 
         # Dirs
-        self.save_dir = get_save_dir(self.args)
-        self.args.name = self.save_dir.name  # update name for loggers
-        self.wdir = self.save_dir / "weights"  # weights dir
+        # self.save_dir = get_save_dir(self.args)
+        # self.args.name = self.save_dir.name  # update name for loggers
+        # self.wdir = self.save_dir / "weights"  # weights dir
+
+        project = self.args.project or Path(SETTINGS['runs_dir']) / self.args.task
+        name = self.args.name or f'{self.args.mode}'
+        
+        if hasattr(self.args, 'tensorboard_dir'):
+            self.tensorboard_dir = Path(self.args.tensorboard_dir)
+        else:
+            self.tensorboard_dir = Path(
+                increment_path(Path(project) / name, exist_ok=self.args.exist_ok if RANK in (-1, 0) else True))
+            
+        if hasattr(self.args, 'save_dir'):
+            self.save_dir = Path(self.args.save_dir)
+        else:
+            self.save_dir = Path(
+                increment_path(Path(project) / name, exist_ok=self.args.exist_ok if RANK in (-1, 0) else True))
+        self.wdir = self.save_dir  # weights dir
+
         if RANK in {-1, 0}:
             self.wdir.mkdir(parents=True, exist_ok=True)  # make dir
             self.args.save_dir = str(self.save_dir)
@@ -145,6 +164,7 @@ class BaseTrainer:
         self.loss_names = ["Loss"]
         self.csv = self.save_dir / "results.csv"
         self.plot_idx = [0, 1, 2]
+        self.ymir_cfg = get_merged_config()
 
         # HUB
         self.hub_session = None
@@ -343,10 +363,16 @@ class BaseTrainer:
             base_idx = (self.epochs - self.args.close_mosaic) * nb
             self.plot_idx.extend([base_idx, base_idx + 1, base_idx + 2])
         epoch = self.start_epoch
+        monitor_epoch_gap = max(1, (self.epochs - self.start_epoch + 1) // 100)
+        monitor_batch_gap = max(1, nb // 100)
         self.optimizer.zero_grad()  # zero any resumed gradients to ensure stability on train start
         while True:
             self.epoch = epoch
             self.run_callbacks("on_train_epoch_start")
+            if RANK in [0, -1] and (epoch - self.start_epoch) % monitor_epoch_gap == 0:
+                epoch_percent = (epoch - self.start_epoch) / (self.epochs - self.start_epoch + 1)
+                write_ymir_monitor_process(self.ymir_cfg, task='training', naive_stage_percent=epoch_percent, stage=YmirStage.TASK)
+            
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")  # suppress 'Detected lr_scheduler.step() before optimizer.step()'
                 self.scheduler.step()
@@ -366,6 +392,11 @@ class BaseTrainer:
             self.tloss = None
             for i, batch in pbar:
                 self.run_callbacks("on_train_batch_start")
+                if RANK in [0, -1] and epoch == self.start_epoch and i % monitor_batch_gap == 0:
+                    epoch_percent = (epoch - self.start_epoch) / (self.epochs - self.start_epoch + 1)
+                    batch_percent = i / nb / (self.epochs - self.start_epoch + 1)
+                    write_ymir_monitor_process(self.ymir_cfg, task='training', naive_stage_percent=batch_percent, stage=YmirStage.TASK)
+                
                 # Warmup
                 ni = i + nb * epoch
                 if ni <= nw:
@@ -532,10 +563,14 @@ class BaseTrainer:
 
         # Save checkpoints
         self.last.write_bytes(serialized_ckpt)  # save last.pt
+        write_ymir_training_result(self.ymir_cfg, map50=self.fitness, id=f'last', files=[str(self.last)])
         if self.best_fitness == self.fitness:
             self.best.write_bytes(serialized_ckpt)  # save best.pt
+            write_ymir_training_result(self.ymir_cfg, map50=self.best_fitness, id=f'best', files=[str(self.best)])
         if (self.save_period > 0) and (self.epoch % self.save_period == 0):
             (self.wdir / f"epoch{self.epoch}.pt").write_bytes(serialized_ckpt)  # save epoch, i.e. 'epoch3.pt'
+            weight_file = str(self.wdir / f'epoch{self.epoch}.pt')
+            write_ymir_training_result(self.ymir_cfg, map50=self.fitness, id=f'epoch_{self.epoch}', files=[weight_file])
         # if self.args.close_mosaic and self.epoch == (self.epochs - self.args.close_mosaic - 1):
         #    (self.wdir / "last_mosaic.pt").write_bytes(serialized_ckpt)  # save mosaic checkpoint
 

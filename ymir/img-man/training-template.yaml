@@ -1,0 +1,8 @@
+shm_size: '32G'
+export_format: 'ark:raw'
+model: 'yolov10n.pt'
+total_batch_size: 32
+epochs: 100
+img_size: 640
+opset: 11
+save_period: 10
