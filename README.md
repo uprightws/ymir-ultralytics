@@ -1,3 +1,65 @@
+# YMIR TRAIN IMAGE
+
+## Build Image
+`docker build -t wxsc-train-ultra:0.0.1 -f ./ymir/docker/Dockerfile .`
+
+## Tag To Remote Repository
+`docker tag wxsc-train-ultra:0.0.1 registry.cn-beijing.aliyuncs.com/sc_aiot/wxsc-train-ultra:0.0.1`
+
+## Using Image In Ymir Platform
+### 1. Pull image 
+
+`docker pull registry.cn-beijing.aliyuncs.com/wxsc-train-ultra:0.0.1`
+
+### 2. YMIR Setting
+**镜像管理** &rArr; **我的镜像** &rArr; **新增镜像**
+
+镜像地址：`registry.cn-beijing.aliyuncs.com/wxsc-train-ultra:0.0.1`
+
+镜像名称：`exsc-train-ultra:0.0.1`
+
+描述：`Say somthing, exp: 基于ultralytics 构建的训练镜像（训练 挖掘 推理），支持yolov5 v6 v7 v8 v9 v10 v11,其中v5 v8 v11支持 seg pose obb`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ULTRALYTICS README
+
 <div align="center">
   <p>
     <a href="https://www.ultralytics.com/events/yolovision" target="_blank">
