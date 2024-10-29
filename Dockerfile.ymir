@@ -1,0 +1,26 @@
+FROM ultralytics/ultralytics
+ARG YMIR="2.1.0"
+
+ENV TORCH_NVCC_FLAGS="-Xfatbin -compress-all"
+ENV LANG=C.UTF-8
+ENV YMIR_VERSION=$YMIR
+ENV YOLOV5_CONFIG_DIR='/app/data'
+
+# Copy file from host to docker and install requirements
+COPY . /app
+RUN mkdir /img-man && mv /app/ymir/img-man/*.yaml /img-man/
+RUN  mv /app/models/*.pt /app && mv /app/models/*.ttf /root/.config/Ultralytics/
+
+# install and requirements
+RUN pip install .
+
+# Download pretrained weight and font file
+
+# install ymir-exc sdk 2.1
+RUN pip install "git+https://github.com/modelai/ymir-executor-sdk.git@ymir2.1.0"
+
+# Make PYTHONPATH find local package
+ENV PYTHONPATH=.
+WORKDIR /app
+RUN echo "python3 /app/ymir/start.py" > /usr/bin/start.sh
+CMD bash /usr/bin/start.sh
