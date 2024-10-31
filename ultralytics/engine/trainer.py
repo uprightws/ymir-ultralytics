@@ -563,14 +563,14 @@ class BaseTrainer:
 
         # Save checkpoints
         self.last.write_bytes(serialized_ckpt)  # save last.pt
-        write_ymir_training_result(self.ymir_cfg, map50=self.fitness, id=f'last', files=[str(self.last)])
+        write_ymir_training_result(self.ymir_cfg, map50=self.fitness, evaluation_result = {'mAP': self.fitness}, id=f'last', files=[str(self.last)])
         if self.best_fitness == self.fitness:
             self.best.write_bytes(serialized_ckpt)  # save best.pt
-            write_ymir_training_result(self.ymir_cfg, map50=self.best_fitness, id=f'best', files=[str(self.best)])
+            write_ymir_training_result(self.ymir_cfg, map50=self.best_fitness, evaluation_result = {'mAP': self.fitness}, id=f'best', files=[str(self.best)])
         if (self.save_period > 0) and (self.epoch % self.save_period == 0):
             (self.wdir / f"epoch{self.epoch}.pt").write_bytes(serialized_ckpt)  # save epoch, i.e. 'epoch3.pt'
             weight_file = str(self.wdir / f'epoch{self.epoch}.pt')
-            write_ymir_training_result(self.ymir_cfg, map50=self.fitness, id=f'epoch_{self.epoch}', files=[weight_file])
+            write_ymir_training_result(self.ymir_cfg, map50=self.fitness, evaluation_result = {'mAP': self.fitness}, id=f'epoch_{self.epoch}', files=[weight_file])
         # if self.args.close_mosaic and self.epoch == (self.epochs - self.args.close_mosaic - 1):
         #    (self.wdir / "last_mosaic.pt").write_bytes(serialized_ckpt)  # save mosaic checkpoint
 
